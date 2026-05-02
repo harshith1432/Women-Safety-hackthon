@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.env
+
+# Android / Kotlin / Gradle
+.gradle
+/build
+*/build/
+captures/
+.externalNativeBuild
+.cxx
+local.properties
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+
+# MacOS
+.DS_Store

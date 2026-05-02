@@ -1,0 +1,21 @@
+Script started
+os imported
+flask imported
+sqlalchemy imported
+jwt imported
+werkzeug imported
+cors imported
+socketio imported
+dotenv imported
+Imports done
+Imports done
+Env loaded: True
+Env loaded: True
+Flask init
+Flask init
+DB init
+JWT init
+DB init
+JWT init
+SocketIO init
+SocketIO init

@@ -1,0 +1,27 @@
+<resources>
+    <!-- Custom style for the SOS button -->
+    <style name="SOSButtonStyle">
+        <item name="android:layout_width">220dp</item>
+        <item name="android:layout_height">220dp</item>
+        <item name="android:background">@drawable/sos_button_gradient</item>
+        <item name="android:textColor">#ffffff</item>
+        <item name="android:textSize">44sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:insetLeft">0dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetRight">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="cornerRadius">110dp</item>
+    </style>
+
+    <!-- Style for small action buttons -->
+    <style name="ActionButtonStyle">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">60dp</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textColor">#ffffff</item>
+        <item name="backgroundTint">#1e293b</item>
+        <item name="cornerRadius">12dp</item>
+    </style>
+</resources>

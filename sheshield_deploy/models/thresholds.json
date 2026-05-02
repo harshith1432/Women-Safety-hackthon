@@ -1,0 +1,8 @@
+{
+  "score_column_used": "base_risk_score",
+  "p25": 0.8655108000000001,
+  "p60": 7.845967499999999,
+  "p85": 16.357000000000003,
+  "score_min_raw": 0.0,
+  "score_max_raw": 50.0
+}

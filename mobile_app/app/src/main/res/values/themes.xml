@@ -1,0 +1,24 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme. -->
+    <style name="Theme.SheShieldAI" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <!-- Primary brand color. -->
+        <item name="colorPrimary">#38bdf8</item>
+        <item name="colorPrimaryVariant">#0ea5e9</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <!-- Secondary brand color. -->
+        <item name="colorSecondary">#ef4444</item>
+        <item name="colorSecondaryVariant">#b91c1c</item>
+        <item name="colorOnSecondary">@color/white</item>
+        <!-- Status bar color. -->
+        <item name="android:statusBarColor">#0f172a</item>
+        <item name="android:windowBackground">#0f172a</item>
+        <!-- Customize your theme here. -->
+    </style>
+
+    <style name="Theme.SheShieldAI.Dialog" parent="Theme.MaterialComponents.DayNight.Dialog">
+        <item name="android:windowBackground">#1e293b</item>
+        <item name="colorPrimary">#38bdf8</item>
+        <item name="colorSurface">#1e293b</item>
+        <item name="colorOnSurface">#ffffff</item>
+    </style>
+</resources>

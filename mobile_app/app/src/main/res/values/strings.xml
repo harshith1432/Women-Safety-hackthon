@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">SheShield AI</string>
+    <string name="google_maps_key" translatable="false">AIzaSyD5HO_rgb0L54SHd94vVTq6Elxbd_cmJlo</string>
+</resources>

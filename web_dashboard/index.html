@@ -1,0 +1,1407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SheShield AI | Tactical Monitoring Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Syncopate:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-dark: #050810;
+            --sidebar-bg: rgba(10, 15, 30, 0.95);
+            --card-bg: rgba(25, 35, 60, 0.6);
+            --emergency: #ff3333;
+            --warning: #ffcc00;
+            --safe: #00ff88;
+            --accent: #0088ff;
+            --glass: rgba(255, 255, 255, 0.03);
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        body { 
+            background-color: var(--bg-dark); 
+            color: #ffffff; 
+            font-family: 'Outfit', sans-serif; 
+            margin: 0;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        /* Sidebar overhaul */
+        .sidebar { 
+            height: 100vh; 
+            width: 380px; 
+            background: var(--sidebar-bg); 
+            backdrop-filter: blur(30px);
+            border-right: 1px solid var(--border); 
+            display: flex;
+            flex-direction: column;
+            position: fixed; 
+            z-index: 1000;
+            box-shadow: 20px 0 60px rgba(0,0,0,0.8);
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .main-content { 
+            margin-left: 380px; 
+            height: 100vh; 
+            position: relative; 
+            background: #000;
+        }
+
+        #map { height: 100%; width: 100%; }
+
+        /* Top Header */
+        .header { 
+            background: rgba(5, 8, 16, 0.85); 
+            backdrop-filter: blur(15px);
+            padding: 12px 25px; 
+            border-bottom: 1px solid var(--border); 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center;
+            position: absolute;
+            top: 0;
+            right: 0;
+            left: 0;
+            z-index: 999;
+        }
+
+        /* Tactical HUD Elements */
+        .hud-bottom-right {
+            position: absolute;
+            bottom: 25px;
+            right: 25px;
+            z-index: 998;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            align-items: flex-end;
+        }
+
+        .hud-card {
+            background: rgba(10, 20, 40, 0.85);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 15px 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .legend-card {
+            width: 220px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+            margin-bottom: 5px;
+        }
+
+        .dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; }
+
+        /* Layer Controls */
+        .layer-btn {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            color: white;
+            width: 45px;
+            height: 45px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .layer-btn:hover { background: var(--accent); transform: scale(1.05); }
+        .layer-btn.active { background: var(--accent); border-color: #fff; }
+
+        /* Alert Feed Items */
+        .alert-item { 
+            background: var(--card-bg); 
+            border-radius: 16px; 
+            padding: 18px; 
+            margin-bottom: 15px; 
+            border: 1px solid var(--border);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .alert-item:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        .alert-item.emergency { 
+            background: rgba(255, 51, 51, 0.08);
+            border: 1px solid rgba(255, 51, 51, 0.4);
+            animation: pulse-border 2s infinite;
+        }
+
+        @keyframes pulse-border {
+            0%, 100% { border-color: rgba(255, 51, 51, 0.4); box-shadow: 0 0 5px rgba(255, 51, 51, 0.1); }
+            50% { border-color: rgba(255, 51, 51, 1); box-shadow: 0 0 20px rgba(255, 51, 51, 0.3); }
+        }
+
+        .emergency-banner {
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--emergency);
+            color: white;
+            padding: 12px 35px;
+            border-radius: 12px;
+            font-weight: 800;
+            z-index: 10000;
+            display: none;
+            box-shadow: 0 0 50px rgba(255, 51, 51, 0.6);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            animation: slide-down 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes slide-down {
+            from { top: -50px; opacity: 0; }
+            to { top: 80px; opacity: 1; }
+        }
+
+        .status-pill {
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .scroll-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            scrollbar-width: thin;
+            scrollbar-color: var(--accent) transparent;
+        }
+
+        .scroll-area::-webkit-scrollbar { width: 4px; }
+        .scroll-area::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 10px; }
+
+        /* Stats */
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            padding: 20px;
+        }
+
+        .stat-box {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .stat-box .val { font-size: 24px; font-weight: 800; }
+        .stat-box .label { font-size: 10px; text-transform: uppercase; opacity: 0.5; letter-spacing: 1px; }
+
+        .custom-marker {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 3px solid #fff;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
+        }
+
+        /* Leaflet Specific */
+        .leaflet-container {
+            background: #050810 !important;
+        }
+
+        @keyframes marker-pulse {
+            0% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.7); }
+            70% { transform: scale(1.5); opacity: 0; box-shadow: 0 0 0 20px rgba(0, 255, 136, 0); }
+            100% { transform: scale(1); opacity: 0; box-shadow: 0 0 0 0 rgba(0, 255, 136, 0); }
+        }
+
+        .pulse-icon {
+            background: rgba(0, 255, 136, 0.2);
+            border-radius: 50%;
+            border: 2px solid #00ff88;
+        }
+        
+        .pulse-icon::after {
+            content: '';
+            position: absolute;
+            top: -5px; left: -5px; right: -5px; bottom: -5px;
+            border-radius: 50%;
+            border: 2px solid #00ff88;
+            animation: marker-pulse-green 2s infinite;
+        }
+
+        .pulse-red {
+            background: rgba(255, 51, 51, 0.2);
+            border-color: #ff3333;
+        }
+
+        .pulse-red::after {
+            border-color: #ff3333;
+            animation: marker-pulse-red 2s infinite;
+        }
+
+        @keyframes marker-pulse-green {
+            0% { transform: scale(0.8); opacity: 0.8; box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.7); }
+            70% { transform: scale(3.5); opacity: 0; box-shadow: 0 0 0 30px rgba(0, 255, 136, 0); }
+            100% { transform: scale(0.8); opacity: 0; }
+        }
+
+        @keyframes marker-pulse-red {
+            0% { transform: scale(0.8); opacity: 1; box-shadow: 0 0 0 0 rgba(255, 51, 51, 0.7); }
+            70% { transform: scale(4.5); opacity: 0; box-shadow: 0 0 0 40px rgba(255, 51, 51, 0); }
+            100% { transform: scale(0.8); opacity: 0; }
+        }
+
+        .risk-marker-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .risk-marker {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            transition: all 0.3s ease;
+        }
+
+        /* AI Flow UI */
+        .ai-flow {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(0,0,0,0.05);
+            border-radius: 8px;
+            position: relative;
+        }
+        .ai-node {
+            font-size: 8px;
+            text-align: center;
+            width: 60px;
+            z-index: 1;
+        }
+        .ai-line {
+            position: absolute;
+            height: 1px;
+            background: #ccc;
+            top: 50%;
+            left: 50px;
+            right: 50px;
+            z-index: 0;
+        }
+        /* Device List Item */
+        .device-item {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 14px 18px;
+            margin-bottom: 12px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .device-item:hover {
+            background: rgba(0, 136, 255, 0.08);
+            border-color: var(--accent);
+            transform: translateX(5px);
+        }
+
+        .device-name {
+            color: #ffffff !important;
+            font-weight: 700 !important;
+            font-size: 15px !important;
+            letter-spacing: 0.5px;
+            text-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+
+        .device-status {
+            color: #00ccff !important;
+            font-size: 10px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.9;
+            margin-top: 2px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="emergency-banner" class="emergency-banner">🔴 SOS: PRIORITY ALPHA ALERT</div>
+
+<div class="sidebar">
+    <div class="p-4 border-bottom border-secondary d-flex justify-content-between align-items-center">
+        <div>
+            <h4 class="m-0 fw-bold"><i class="fas fa-shield-halved text-info me-2"></i>SheShield <span class="text-info">AI</span></h4>
+            <small class="text-muted text-uppercase fw-bold" style="font-size: 10px; letter-spacing: 2px;">Police Command Center</small>
+        </div>
+        <div class="status-pill bg-success bg-opacity-25 text-success border border-success">Live</div>
+    </div>
+    
+    <div class="stat-grid">
+        <div class="stat-box">
+            <div class="val text-info" id="stat-online">0</div>
+            <div class="label">Connected</div>
+        </div>
+        <div class="stat-box">
+            <div class="val text-danger" id="stat-alerts">0</div>
+            <div class="label">Incidents</div>
+        </div>
+    </div>
+
+    <div class="px-4 mb-2 d-flex justify-content-between align-items-center">
+        <h6 class="text-uppercase small fw-bold opacity-50 m-0">Tactical Feed</h6>
+        <span id="alert-count" class="badge rounded-pill bg-danger" style="display:none">0</span>
+    </div>
+
+    <div id="alert-list" class="scroll-area">
+        <div id="no-alerts" class="text-center opacity-25 mt-5">
+            <i class="fas fa-satellite-dish fa-3x mb-3"></i>
+            <p>Scanning for signals...</p>
+        </div>
+    </div>
+
+    <div class="px-4 mb-2 mt-4">
+        <h6 class="text-uppercase small fw-bold opacity-50 m-0">Live Devices</h6>
+    </div>
+    <div id="device-list" class="scroll-area" style="max-height: 300px;">
+        <div class="text-center opacity-25 mt-3 small">No active devices</div>
+    </div>
+
+    <div class="px-4 mb-2 mt-4">
+        <h6 class="text-uppercase small fw-bold opacity-50 m-0">System Log</h6>
+    </div>
+    <div id="system-log" class="scroll-area bg-black bg-opacity-50 mx-4 rounded" style="height: 120px; font-family: 'Space Grotesk'; font-size: 9px; padding: 10px; color: #888; overflow-y: auto;">
+        <div>> System initialized...</div>
+    </div>
+
+    <div class="p-3 bg-black bg-opacity-40 mt-auto border-top border-secondary">
+        <button class="btn btn-outline-info w-100 rounded-pill btn-sm mb-2" onclick="showHistory()"><i class="fas fa-clock-rotate-left me-2"></i>Incident History</button>
+        <button class="btn btn-dark w-100 rounded-pill btn-sm" onclick="showSettings()"><i class="fas fa-gear me-2"></i>System Configuration</button>
+    </div>
+</div>
+
+<div class="main-content">
+    <div class="header">
+        <div class="d-flex align-items-center">
+            <div class="me-4 d-none d-lg-block">
+                <i class="fas fa-location-crosshairs text-info me-2"></i>
+                <span class="small fw-bold opacity-75">HQ-BANGALORE / SEC-04</span>
+            </div>
+            <div id="system-ticker" class="small opacity-50 fw-bold d-none d-md-block">
+                SYSTEM IDLE // WAITING FOR UPLINK...
+            </div>
+            <div id="map-status" class="badge bg-secondary ms-3" style="font-size: 8px;">MAP: INITIALIZING</div>
+            <div id="socket-status" class="badge bg-danger ms-2" style="font-size: 8px;">SOCKET: DISCONNECTED</div>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-glass btn-sm rounded-pill px-3 text-white border-secondary" onclick="clearPaths()">
+                <i class="fas fa-draw-polygon me-2"></i>Reset Paths
+            </button>
+            <div class="vr mx-2 bg-secondary opacity-50"></div>
+            <button class="btn btn-info btn-sm rounded-pill px-4 fw-bold">
+                <i class="fas fa-user-shield me-2"></i>Admin Node
+            </button>
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <!-- HUD Elements Overlay -->
+    <div class="hud-bottom-right">
+        <!-- Layer Selection -->
+        <div class="d-flex gap-2 mb-2">
+            <div class="layer-btn active" id="layer-road" onclick="setMapLayer('roadmap')" title="Map View">
+                <i class="fas fa-map"></i>
+            </div>
+            <div class="layer-btn" id="layer-sat" onclick="setMapLayer('hybrid')" title="Satellite View">
+                <i class="fas fa-satellite"></i>
+            </div>
+            <div class="layer-btn" id="layer-terrain" onclick="setMapLayer('terrain')" title="Terrain View">
+                <i class="fas fa-mountain"></i>
+            </div>
+            <div class="layer-btn active" id="follow-toggle" onclick="toggleFollow()" title="Follow Active User">
+                <i class="fas fa-crosshairs"></i>
+            </div>
+            <div class="layer-btn" id="layer-traffic" onclick="toggleTraffic()" title="Traffic Overlay">
+                <i class="fas fa-car"></i>
+            </div>
+            <div class="layer-btn" onclick="refreshData()" title="Refresh Feed">
+                <i class="fas fa-sync-alt"></i>
+            </div>
+        </div>
+
+        <!-- Risk Legend -->
+        <div class="hud-card legend-card">
+            <h6 class="small fw-bold mb-3 opacity-75">RISK ANALYSIS KEY</h6>
+            <div class="legend-item">
+                <span class="dot" style="background: var(--emergency)"></span>
+                <span>EMERGENCY (80+)</span>
+            </div>
+            <div class="legend-item">
+                <span class="dot" style="background: #f97316"></span>
+                <span>HIGH RISK (50-80)</span>
+            </div>
+            <div class="legend-item">
+                <span class="dot" style="background: var(--warning)"></span>
+                <span>WARNING (25-50)</span>
+            </div>
+            <div class="legend-item">
+                <span class="dot" style="background: var(--safe)"></span>
+                <span>SAFE SECURE</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Assign Officer Modal -->
+<div class="modal fade" id="dispatchModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark border-secondary text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title fw-bold text-info">DISPATCH RESPONDER</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <label class="small opacity-75 mb-2">SELECT OFFICER / UNIT</label>
+                <select id="officerSelect" class="form-select bg-black text-white border-secondary mb-3">
+                    <option value="ALPHA-01 (Rapid)">ALPHA-01 (Rapid)</option>
+                    <option value="BRAVO-09 (Patrol)">BRAVO-09 (Patrol)</option>
+                    <option value="CHARLIE-04 (Medical)">CHARLIE-04 (Medical)</option>
+                    <option value="EAGLE-EYE (Drone)">EAGLE-EYE (Drone)</option>
+                </select>
+                <input type="hidden" id="activeAlertId">
+                <button class="btn btn-info w-100 fw-bold" onclick="confirmDispatch()">INITIALIZE DISPATCH</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+    const BACKEND_URL = window.location.origin;
+    let useGoogleMaps = true;
+    let map;
+    let markers = {};
+    let infoWindows = {};
+    let paths = {};
+    let socket;
+    let trafficLayer;
+    let isTrafficVisible = false;
+    let followMode = true; // Auto-pan to active users
+    let leafletLayers = {};
+    let currentLayerType = 'roadmap';
+
+    function initMap() {
+        if (typeof google === 'undefined' || !google.maps) {
+            console.warn("Google Maps not loaded. Switching to Leaflet.");
+            initLeafletMap();
+            return;
+        }
+
+        const center = { lat: 12.9716, lng: 77.5946 };
+        try {
+            map = new google.maps.Map(document.getElementById("map"), {
+                center: center,
+                zoom: 14,
+                styles: [
+                    { "elementType": "geometry", "stylers": [{ "color": "#121826" }] },
+                    { "elementType": "labels.text.fill", "stylers": [{ "color": "#8e9aaf" }] },
+                    { "elementType": "labels.text.stroke", "stylers": [{ "color": "#121826" }] },
+                    { "featureType": "administrative.locality", "elementType": "labels.text.fill", "stylers": [{ "color": "#00b4d8" }] },
+                    { "featureType": "poi", "elementType": "labels.icon", "stylers": [{ "visibility": "off" }] },
+                    { "featureType": "road", "elementType": "geometry", "stylers": [{ "color": "#1b2436" }] },
+                    { "featureType": "road", "elementType": "geometry.stroke", "stylers": [{ "color": "#2a374f" }] },
+                    { "featureType": "road.highway", "elementType": "geometry", "stylers": [{ "color": "#243147" }] },
+                    { "featureType": "transit", "stylers": [{ "visibility": "off" }] },
+                    { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#0b101b" }] }
+                ],
+                disableDefaultUI: true,
+                zoomControl: false,
+                gestureHandling: 'greedy'
+            });
+
+            trafficLayer = new google.maps.TrafficLayer();
+            useGoogleMaps = true;
+            finishInit();
+        } catch (e) {
+            console.error("Google Maps initialization failed:", e);
+            initLeafletMap();
+        }
+    }
+
+    // Safety fallback if Google Maps script fails or takes too long
+    setTimeout(() => {
+        if (typeof map === 'undefined') {
+            console.warn("Map not initialized by Google. Forcing Leaflet.");
+            initLeafletMap();
+        }
+    }, 4000);
+
+    function initLeafletMap() {
+        if (typeof map !== 'undefined' && !useGoogleMaps) return; // Already Leaflet
+        
+        const mapContainer = document.getElementById("map");
+        mapContainer.innerHTML = ""; // Clear any "Oops" message from Google
+        
+        useGoogleMaps = false;
+        console.log("Initializing Leaflet fallback...");
+        
+        // Clear all engine-specific objects to prevent crashes
+        markers = {};
+        paths = {};
+        infoWindows = {};
+        
+        const center = [12.9716, 77.5946];
+        
+        map = L.map('map', {
+            zoomControl: false,
+            attributionControl: false
+        }).setView(center, 14);
+
+        // Define Leaflet layers
+        leafletLayers = {
+            'roadmap': L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                maxZoom: 19
+            }),
+            'hybrid': L.layerGroup([
+                L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'),
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
+                    pane: 'overlayPane', // Changed from shadowPane to overlayPane
+                    opacity: 0.9,
+                    zIndex: 1000
+                })
+            ]),
+            'terrain': L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+                maxZoom: 17
+            })
+        };
+
+        leafletLayers[currentLayerType].addTo(map);
+
+        finishInit();
+    }
+
+    async function finishInit() {
+        document.getElementById('map-status').innerText = useGoogleMaps ? "MAP: GOOGLE" : "MAP: LEAFLET";
+        document.getElementById('map-status').className = `badge bg-${useGoogleMaps ? 'primary' : 'success'} ms-3`;
+        
+        // Ensure UI matches current layer
+        updateLayerUI(currentLayerType);
+        
+        initSocket();
+        await loadInitialData();
+        await loadLiveUsers();
+        await loadActiveAlerts();
+        startTicker();
+    }
+
+    function initSocket() {
+        socket = io(BACKEND_URL);
+
+        socket.on('connect', () => {
+            updateTicker("SECURE LINK ESTABLISHED // MONITORING...");
+            document.getElementById('socket-status').innerText = "SOCKET: CONNECTED";
+            document.getElementById('socket-status').className = "badge bg-success ms-2";
+            loadLiveUsers(); // Reload to catch anything missed during disconnect
+        });
+
+        socket.on('disconnect', () => {
+            document.getElementById('socket-status').innerText = "SOCKET: DISCONNECTED";
+            document.getElementById('socket-status').className = "badge bg-danger ms-2";
+        });
+
+        socket.on('user_active', (data) => {
+            updateUserOnMap(data);
+            updateDeviceList(data);
+            updateTicker(`DEVICE ONLINE: ${data.name}`);
+            loadInitialData();
+        });
+
+        socket.on('user_offline', (data) => {
+            removeMarker(data.id);
+            updateDeviceList(data, true);
+            updateTicker(`DEVICE OFFLINE: ${data.name}`);
+            loadInitialData();
+        });
+
+        socket.on('location_update', (data) => {
+            if (!data.name) data.name = "Active Device";
+            updateUserOnMap(data);
+            updateDeviceList(data);
+            
+            const firstName = data.name ? data.name.split(' ')[0] : "User";
+            const lat = parseFloat(data.latitude || 0).toFixed(4);
+            const lng = parseFloat(data.longitude || 0).toFixed(4);
+            updateTicker(`POS UPDATE: ${firstName} @ ${lat}, ${lng}`);
+            
+            // Auto-follow if enabled
+            if (followMode && (data.is_online || data.has_alert)) {
+                focusUser(data.latitude, data.longitude);
+            }
+        });
+
+        socket.on('user_active', (data) => {
+            if (!data.name) data.name = "Active Device";
+            updateUserOnMap(data);
+            updateDeviceList(data);
+            updateTicker(`DEVICE ONLINE: ${data.name}`);
+        });
+
+        socket.on('risk_update', (data) => {
+            updateUserOnMap(data); // Full update to ensure map reflects score
+            updateTicker(`RISK ALERT: ${data.name} - ${data.risk_score}%`);
+        });
+
+        socket.on('emergency_alert', (data) => {
+            handleEmergency(data);
+        });
+
+        socket.on('police_dispatched', (data) => {
+            updateTicker(`UNIT DEPLOYED TO ALERT ${data.alert_id}`);
+            loadActiveAlerts();
+        });
+
+        socket.on('alert_resolved', (data) => {
+            updateTicker(`ALERT ${data.alert_id} RESOLVED`);
+            const card = document.getElementById(`alert-card-${data.alert_id}`);
+            if (card) card.remove();
+            loadInitialData();
+            loadActiveAlerts();
+        });
+    }
+
+    function getRiskColor(score) {
+        if (score >= 80) return "#ff3333"; // Red (Emergency/Critical)
+        if (score >= 50) return "#f97316"; // Orange (High Risk)
+        if (score >= 25) return "#ffcc00"; // Yellow (Warning)
+        return "#00ff88"; // Green (Safe/Active)
+    }
+
+    function updateUserOnMap(data) {
+        const { id, name, latitude, longitude, risk_score, speed, movement_status, is_online, has_alert } = data;
+        
+        // Debugging logs
+        console.log(`[MAP_UPDATE] User: ${name}, Lat: ${latitude}, Lng: ${longitude}, Risk: ${risk_score}, Online: ${is_online}`);
+        
+        if (latitude === undefined || longitude === undefined || latitude === null || longitude === null) {
+            console.warn(`[MAP_UPDATE] Invalid coords for ${name || id}`);
+            return;
+        }
+        
+        const pos = { lat: parseFloat(latitude), lng: parseFloat(longitude) };
+        const scoreVal = parseFloat(risk_score || 0);
+        let color = getRiskColor(scoreVal);
+        
+        // We no longer force red just because an alert exists. 
+        // The color strictly follows the risk score as per the Risk Analysis Key.
+
+        if (useGoogleMaps) {
+            if (markers[id]) {
+                markers[id].setPosition(pos);
+                markers[id].setIcon(getMarkerIcon(color));
+                if (infoWindows[id]) infoWindows[id].setContent(getInfoWindowContent(data));
+            } else {
+                markers[id] = new google.maps.Marker({
+                    position: pos,
+                    map: map,
+                    icon: getMarkerIcon(color),
+                    optimized: false,
+                    title: name,
+                    zIndex: 1000
+                });
+                const infoWindow = new google.maps.InfoWindow({ content: getInfoWindowContent(data) });
+                markers[id].addListener("click", () => {
+                    Object.values(infoWindows).forEach(iw => iw.close());
+                    infoWindow.open(map, markers[id]);
+                });
+                infoWindows[id] = infoWindow;
+            }
+        } else {
+            const leafPos = [parseFloat(latitude), parseFloat(longitude)];
+            
+            // Pulse logic based on score threshold (80+)
+            const pulseColorClass = (scoreVal >= 80) ? 'pulse-red' : 'pulse-green';
+            const pulseIcon = L.divIcon({
+                className: `pulse-icon ${pulseColorClass}`,
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+            });
+
+            const riskIcon = L.divIcon({
+                className: 'risk-marker-container',
+                html: `<div class="risk-marker" style="background: ${color}; border: 2px solid #fff; box-shadow: 0 0 10px rgba(0,0,0,0.3); ${scoreVal >= 80 ? 'box-shadow: 0 0 20px #ff3333; transform: scale(1.2);' : ''}"></div>`,
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+            });
+
+            if (markers[id] && typeof markers[id].setLatLng !== 'function') {
+                delete markers[id];
+                if (markers[`pulse_${id}`]) delete markers[`pulse_${id}`];
+            }
+
+            if (markers[id]) {
+                markers[id].setLatLng(leafPos);
+                if (markers[`pulse_${id}`]) {
+                    markers[`pulse_${id}`].setLatLng(leafPos);
+                    const pulseEl = markers[`pulse_${id}`].getElement();
+                    if (pulseEl) {
+                        const newPulseClass = (scoreVal >= 80) ? 'pulse-red' : 'pulse-green';
+                        pulseEl.className = `leaflet-marker-icon pulse-icon ${newPulseClass} leaflet-zoom-animated leaflet-interactive`;
+                    }
+                }
+                
+                const markerEl = markers[id].getElement();
+                if (markerEl) {
+                    const inner = markerEl.querySelector('.risk-marker');
+                    if (inner) {
+                        inner.style.background = color;
+                        inner.style.boxShadow = (scoreVal >= 80) ? '0 0 20px #ff3333' : '0 0 10px rgba(0,0,0,0.3)';
+                        inner.style.transform = (scoreVal >= 80) ? 'scale(1.2)' : 'scale(1)';
+                    }
+                }
+
+                if (!map.hasLayer(markers[id])) markers[id].addTo(map);
+                if (markers[`pulse_${id}`]) {
+                    if (!map.hasLayer(markers[`pulse_${id}`])) markers[`pulse_${id}`].addTo(map);
+                }
+            } else {
+                markers[`pulse_${id}`] = L.marker(leafPos, { 
+                    icon: pulseIcon, 
+                    zIndexOffset: -10 
+                }).addTo(map);
+                
+                markers[id] = L.marker(leafPos, { 
+                    icon: riskIcon,
+                    zIndexOffset: 10
+                }).addTo(map);
+                
+                markers[id].bindPopup(getInfoWindowContent(data));
+            }
+        }
+
+        // Sync with Sidebar
+        updateDeviceList(data);
+
+        // Path Trail
+        const leafPos = useGoogleMaps ? pos : [parseFloat(latitude), parseFloat(longitude)];
+        if (!paths[id]) {
+            if (useGoogleMaps) {
+                paths[id] = new google.maps.Polyline({
+                    path: [pos],
+                    geodesic: true,
+                    strokeColor: color,
+                    strokeOpacity: 0.6,
+                    strokeWeight: 4,
+                    map: map
+                });
+            } else {
+                paths[id] = L.polyline([leafPos], {
+                    color: color,
+                    weight: 4,
+                    opacity: 0.5,
+                    dashArray: '5, 10'
+                }).addTo(map);
+            }
+            loadUserHistory(id);
+        } else {
+            if (useGoogleMaps) {
+                const path = paths[id].getPath();
+                const lastPoint = path.getAt(path.getLength() - 1);
+                if (lastPoint) {
+                    const dist = Math.sqrt(Math.pow(lastPoint.lat() - pos.lat, 2) + Math.pow(lastPoint.lng() - pos.lng, 2));
+                    if (dist > 0.00005) path.push(new google.maps.LatLng(pos.lat, pos.lng));
+                } else {
+                    path.push(new google.maps.LatLng(pos.lat, pos.lng));
+                }
+                paths[id].setOptions({ strokeColor: color });
+            } else {
+                const lastLatLng = paths[id].getLatLngs().slice(-1)[0];
+                if (lastLatLng) {
+                    const dist = Math.sqrt(Math.pow(lastLatLng.lat - leafPos[0], 2) + Math.pow(lastLatLng.lng - leafPos[1], 2));
+                    if (dist > 0.00005) paths[id].addLatLng(leafPos);
+                } else {
+                    paths[id].addLatLng(leafPos);
+                }
+                paths[id].setStyle({ color: color });
+            }
+        }
+    }
+
+    function getBatteryIcon(battery) {
+        if (battery > 80) return 'fa-battery-full text-success';
+        if (battery > 50) return 'fa-battery-three-quarters text-info';
+        if (battery > 20) return 'fa-battery-quarter text-warning';
+        return 'fa-battery-empty text-danger';
+    }
+
+    function getInfoWindowContent(data) {
+        const assessment = data.assessment || {};
+        const components = assessment.components || {};
+        const rules = components.rule_score || assessment.rule_score || assessment.rules_score || 0;
+        const ml = components.ml_score || assessment.ml_score || 0;
+        const final = data.risk_score || 0;
+        const battery = data.battery || 80;
+        const has_alert = data.has_alert || false;
+        const breakdown = assessment.rule_breakdown || {};
+        
+        let triggers = [];
+        if (breakdown.shake) triggers.push("SHAKE");
+        if (breakdown.voice_trigger) triggers.push("VOICE");
+        if (breakdown.manual_sos) triggers.push("SOS");
+        if (breakdown.night_travel) triggers.push("NIGHT");
+        
+        return `
+            <div style="color:#000; padding:15px; font-family:'Outfit'; min-width: 250px; background: #fff; border-radius: 12px;">
+                <h6 class="m-0 fw-bold border-bottom pb-2 mb-2 d-flex justify-content-between align-items-center">
+                    <span style="color: ${getRiskColor(final)};" class="${has_alert ? 'fa-beat' : ''}">${data.name || data.user_name || 'Anonymous User'}</span>
+                    <i class="fas ${getBatteryIcon(battery)}"></i>
+                </h6>
+                ${triggers.length > 0 ? `
+                <div class="mb-2">
+                    ${triggers.map(t => `<span class="badge bg-danger me-1" style="font-size: 8px;">${t}</span>`).join('')}
+                </div>
+                ` : ''}
+                <div class="small mb-1 d-flex justify-content-between">
+                    <span><i class="fas fa-phone me-2 opacity-50"></i>${data.phone || 'N/A'}</span>
+                    <span class="fw-bold">${battery}%</span>
+                </div>
+                <div class="small mb-1"><i class="fas fa-gauge-high me-2 opacity-50"></i>Speed: <b>${data.speed || 0} km/h</b></div>
+                <div class="small mb-1"><i class="fas fa-person-running me-2 opacity-50"></i>Status: <b>${data.movement_status || 'IDLE'}</b></div>
+                
+                <div class="mt-2 pt-2 border-top">
+                    <div class="d-flex justify-content-between small mb-1">
+                        <span class="opacity-75">Rule-Based Score:</span>
+                        <span class="fw-bold" style="color: ${getRiskColor(rules)}">${rules.toFixed(1)}%</span>
+                    </div>
+                    <div class="d-flex justify-content-between small mb-1">
+                        <span class="opacity-75">ML Prediction:</span>
+                        <span class="fw-bold" style="color: ${getRiskColor(ml)}">${ml.toFixed(1)}%</span>
+                    </div>
+                    
+                    <!-- AI Flow Visualization -->
+                    <div class="ai-flow">
+                        <div class="ai-line"></div>
+                        <div class="ai-node">
+                            <i class="fas fa-microchip text-primary mb-1"></i>
+                            <div>RULES</div>
+                        </div>
+                        <div class="ai-node">
+                            <i class="fas fa-brain text-info mb-1"></i>
+                            <div>ML MODEL</div>
+                        </div>
+                        <div class="ai-node">
+                            <i class="fas fa-shield-check text-success mb-1"></i>
+                            <div>RESULT</div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between fw-bold mt-2" style="font-size: 14px;">
+                        <span>FINAL RISK:</span>
+                        <span style="color: ${getRiskColor(final)}">${final.toFixed(1)}%</span>
+                    </div>
+                </div>
+
+                <button class="btn btn-dark btn-sm w-100 rounded-pill mt-3" style="font-size: 10px;" onclick="viewFullHistory(${data.id})">VIEW MOVEMENT PATH</button>
+            </div>`;
+    }
+
+    function getMarkerIcon(color) {
+        if (!useGoogleMaps) return null;
+        return {
+            path: google.maps.SymbolPath.CIRCLE,
+            fillColor: color,
+            fillOpacity: 1,
+            strokeColor: "#fff",
+            strokeWeight: 2,
+            scale: 8
+        };
+    }
+
+    function updateMarkerStyle(id, color) {
+        if (!markers[id]) return;
+        if (useGoogleMaps) {
+            markers[id].setIcon(getMarkerIcon(color));
+        } else {
+            markers[id].setStyle({ fillColor: color, color: "#fff" });
+        }
+    }
+
+    function removeMarker(id) {
+        if (!markers[id]) return;
+        if (useGoogleMaps) {
+            markers[id].setMap(null);
+        } else {
+            map.removeLayer(markers[id]);
+            if (markers[`pulse_${id}`]) map.removeLayer(markers[`pulse_${id}`]);
+        }
+        delete markers[id];
+        delete markers[`pulse_${id}`];
+        if (infoWindows[id]) delete infoWindows[id];
+    }
+
+    function handleEmergency(data) {
+        const banner = document.getElementById('emergency-banner');
+        banner.style.display = 'block';
+        banner.innerHTML = `
+            <div class="d-flex align-items-center gap-3">
+                <i class="fas fa-triangle-exclamation fa-beat"></i>
+                <div>
+                    <div>SOS: ${data.name ? data.name.toUpperCase() : 'UNKNOWN'}</div>
+                    <div style="font-size: 10px; opacity: 0.8;">TRIGGER: ${data.trigger || 'UNKNOWN'} | BATTERY: ${data.battery || data.battery_status || 'N/A'}%</div>
+                </div>
+            </div>
+        `;
+
+        if (!knownAlertIds.has(data.id)) {
+            knownAlertIds.add(data.id);
+            addAlertToSidebar(data);
+            playAlertSound();
+        }
+
+        updateUserOnMap({...data, risk_score: data.risk_score ?? 0});
+        if (useGoogleMaps) {
+            map.panTo({ lat: parseFloat(data.latitude), lng: parseFloat(data.longitude) });
+            map.setZoom(17);
+        } else {
+            map.setView([data.latitude, data.longitude], 17);
+        }
+
+        setTimeout(() => { banner.style.display = 'none'; }, 15000);
+    }
+
+    function addAlertToSidebar(alert) {
+        const list = document.getElementById('alert-list');
+        const noAlerts = document.getElementById('no-alerts');
+        if (noAlerts) noAlerts.style.display = 'none';
+
+        if (document.getElementById(`alert-card-${alert.id || alert.user_id}`)) return;
+
+        const scoreVal = (alert.risk_score !== undefined && alert.risk_score !== null) ? alert.risk_score : 0;
+        const riskColor = getRiskColor(scoreVal);
+        const item = document.createElement('div');
+        item.className = 'alert-item';
+        item.id = `alert-card-${alert.id || alert.user_id}`;
+        
+        // Dynamic border color based on risk
+        item.style.borderLeft = `4px solid ${riskColor}`;
+        item.style.backgroundColor = 'rgba(15, 23, 42, 0.8)'; // Darker slate background
+
+        item.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="fw-bold" style="color: #f8fafc;">${alert.name || alert.user_name || 'Active User'}</span>
+                <span class="status-pill" style="background-color: ${riskColor}; color: white; font-size: 10px; padding: 2px 8px; border-radius: 10px;">
+                    ${scoreVal > 60 ? 'EMERGENCY' : 'RISK DETECTED'}
+                </span>
+            </div>
+            <div class="small opacity-75 mb-3" style="color: #94a3b8;">
+                <div><i class="fas fa-phone me-2 text-info" style="font-size: 10px;"></i>${alert.phone || alert.user_phone || 'N/A'}</div>
+                <div><i class="fas fa-triangle-exclamation me-2 text-warning" style="font-size: 10px;"></i>${alert.trigger || alert.trigger_type || 'MANUAL SOS'}</div>
+            </div>
+            <div class="row g-2">
+                <div class="col-6">
+                    <button class="btn btn-info btn-sm w-100 rounded-pill" style="font-size: 10px;" onclick="focusUser(${alert.latitude}, ${alert.longitude})">Locate</button>
+                </div>
+                <div class="col-6">
+                    <button class="btn btn-warning btn-sm w-100 rounded-pill" style="font-size: 10px;" onclick="dispatchOfficer('${alert.id || alert.user_id}')">Dispatch</button>
+                </div>
+            </div>
+            <div class="text-end mt-2">
+                <div class="fw-bold" style="color: ${riskColor}; font-size: 1.1rem;">${scoreVal.toFixed(1)}%</div>
+                <div class="small opacity-50" style="font-size: 9px; color: #64748b;">${alert.speed || 0} km/h</div>
+            </div>
+            ${alert.assessment && alert.assessment.components ? `
+            <div class="mt-2 pt-2 border-top border-secondary" style="font-size: 9px; color: #94a3b8;">
+                <div class="d-flex justify-content-between">
+                    <span>Rules:</span>
+                    <span>${alert.assessment.components.rule_score}%</span>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <span>AI Logic:</span>
+                    <span>${alert.assessment.components.ml_score}%</span>
+                </div>
+            </div>
+            ` : ''}
+        `;
+        list.prepend(item);
+    }
+
+    async function loadUserHistory(userId) {
+        const token = localStorage.getItem('access_token');
+        if (!token) return;
+
+        try {
+            const response = await fetch(`${BACKEND_URL}/movement-history/${userId}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (response.ok) {
+                const history = await response.json();
+                if (history && history.length > 0) {
+                    const points = history.map(h => useGoogleMaps ? {lat: parseFloat(h.latitude), lng: parseFloat(h.longitude)} : [parseFloat(h.latitude), parseFloat(h.longitude)]);
+                    
+                    if (paths[userId]) {
+                        if (useGoogleMaps) {
+                            paths[userId].setPath(points);
+                        } else {
+                            paths[userId].setLatLngs(points);
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            console.error("Failed to load history for user", userId, e);
+        }
+    }
+
+    function viewFullHistory(userId) {
+        loadUserHistory(userId);
+        updateTicker(`FETCHING MOVEMENT LOGS FOR UID:${userId}...`);
+        
+        // Focus on the user's current marker
+        if (markers[userId]) {
+            const pos = useGoogleMaps ? markers[userId].getPosition() : markers[userId].getLatLng();
+            if (useGoogleMaps) {
+                map.panTo(pos);
+                map.setZoom(16);
+            } else {
+                map.setView(pos, 16);
+            }
+        }
+    }
+
+    function updateDeviceList(user, isOffline = false) {
+        const list = document.getElementById('device-list');
+        if (list.querySelector('.text-center')) list.innerHTML = '';
+
+        let el = document.getElementById(`device-row-${user.id}`);
+        if (isOffline) {
+            if (el) el.remove();
+            if (list.innerHTML === '') list.innerHTML = '<div class="text-center opacity-25 mt-3 small">No active devices</div>';
+            return;
+        }
+
+        if (!el) {
+            el = document.createElement('div');
+            el.id = `device-row-${user.id}`;
+            el.className = 'device-item d-flex align-items-center justify-content-between';
+            list.appendChild(el);
+        }
+
+        const riskColor = getRiskColor(user.risk_score);
+        const batteryIcon = getBatteryIcon(user.battery || 80);
+        
+        el.innerHTML = `
+            <div class="d-flex align-items-center gap-3">
+                <span class="dot" style="background: ${riskColor}; width: 10px; height: 10px; box-shadow: 0 0 10px ${riskColor};"></span>
+                <div>
+                    <div class="device-name d-flex align-items-center gap-2">
+                        ${user.name || 'Active User'} 
+                        <i class="fas ${batteryIcon}" style="font-size: 11px; opacity: 0.8;"></i>
+                    </div>
+                    <div class="device-status">${user.movement_status || 'STATIONARY'}</div>
+                </div>
+            </div>
+            <div class="text-end">
+                <div class="fw-bold mb-1" style="color: ${riskColor}; font-size: 13px;">${parseFloat(user.risk_score).toFixed(1)}%</div>
+                <div class="d-flex gap-2 justify-content-end">
+                    <i class="fas fa-crosshairs text-info cursor-pointer" title="Focus on Map" onclick="focusUser(${user.latitude}, ${user.longitude})"></i>
+                </div>
+            </div>
+        `;
+    }
+
+    async function loadLiveUsers() {
+        try {
+            const res = await fetch(`${BACKEND_URL}/live-users`);
+            const users = await res.json();
+            users.forEach(u => {
+                if (u.is_online || u.has_alert) {
+                    updateUserOnMap(u);
+                    updateDeviceList(u);
+                    fetchAndDrawHistory(u.id);
+                }
+            });
+        } catch (e) { console.error("Error loading live users:", e); }
+    }
+
+    async function fetchAndDrawHistory(userId) {
+        try {
+            const res = await fetch(`${BACKEND_URL}/movement-history/${userId}`);
+            const history = await res.json();
+            if (history.length < 2) return;
+            
+            const color = getRiskColor(history[history.length-1].risk_score);
+            
+            if (useGoogleMaps) {
+                const pathData = history.map(h => ({ lat: parseFloat(h.latitude), lng: parseFloat(h.longitude) }));
+                if (paths[userId]) paths[userId].setMap(null);
+                paths[userId] = new google.maps.Polyline({
+                    path: pathData,
+                    geodesic: true,
+                    strokeColor: color,
+                    strokeOpacity: 0.8,
+                    strokeWeight: 4,
+                    map: map
+                });
+            } else {
+                const leafPath = history.map(h => [parseFloat(h.latitude), parseFloat(h.longitude)]);
+                if (paths[userId]) map.removeLayer(paths[userId]);
+                paths[userId] = L.polyline(leafPath, {
+                    color: color,
+                    weight: 5,
+                    opacity: 0.8,
+                    smoothFactor: 1
+                }).addTo(map);
+            }
+        } catch (e) { console.error(e); }
+    }
+
+    function refreshData() {
+        loadInitialData();
+        loadLiveUsers();
+        loadActiveAlerts();
+        updateTicker("REFRESHING TACTICAL DATA...");
+    }
+
+    async function loadActiveAlerts() {
+        try {
+            const res = await fetch(`${BACKEND_URL}/emergency-alerts`);
+            const alerts = await res.json();
+            alerts.forEach(a => {
+                knownAlertIds.add(a.id);
+                addAlertToSidebar(a);
+            });
+        } catch (e) { console.error("Error loading alerts:", e); }
+    }
+
+    async function loadInitialData() {
+        try {
+            const res = await fetch(`${BACKEND_URL}/police-dashboard`);
+            const stats = await res.json();
+            document.getElementById('stat-online').innerText = stats.online_users;
+            document.getElementById('stat-alerts').innerText = stats.active_alerts;
+            
+            const countBadge = document.getElementById('alert-count');
+            countBadge.innerText = stats.active_alerts;
+            countBadge.style.display = stats.active_alerts > 0 ? 'block' : 'none';
+        } catch (e) { console.error("Error loading stats:", e); }
+    }
+
+    function focusUser(lat, lng) {
+        if (!lat || !lng) return;
+        if (useGoogleMaps) {
+            map.panTo({ lat: parseFloat(lat), lng: parseFloat(lng) });
+            map.setZoom(18);
+        } else {
+            map.setView([lat, lng], 18);
+        }
+    }
+
+    function dispatchOfficer(alertId) {
+        document.getElementById('activeAlertId').value = alertId;
+        new bootstrap.Modal(document.getElementById('dispatchModal')).show();
+    }
+
+    async function confirmDispatch() {
+        const alertId = document.getElementById('activeAlertId').value;
+        const officer = document.getElementById('officerSelect').value;
+        
+        try {
+            const res = await fetch(`${BACKEND_URL}/police/assign`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ alert_id: alertId, officer_name: officer })
+            });
+            if (res.ok) {
+                bootstrap.Modal.getInstance(document.getElementById('dispatchModal')).hide();
+                updateTicker(`OFFICER ${officer} DEPLOYED`);
+                loadActiveAlerts();
+            }
+        } catch (e) { console.error(e); }
+    }
+
+    async function resolveAlert(alertId) {
+        if (!confirm("Confirm case resolution?")) return;
+        try {
+            const res = await fetch(`${BACKEND_URL}/resolve-alert`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ alert_id: alertId })
+            });
+            if (res.ok) {
+                document.getElementById(`alert-card-${alertId}`).remove();
+                loadInitialData();
+                updateTicker(`CASE ${alertId} RESOLVED`);
+            }
+        } catch (e) { console.error(e); }
+    }
+
+    async function viewFullHistory(userId) {
+        try {
+            const res = await fetch(`${BACKEND_URL}/movement-history/${userId}`);
+            const history = await res.json();
+            if (history.length === 0) {
+                alert("No movement history available for this user.");
+                return;
+            }
+            
+            const pathData = history.map(h => ({ lat: parseFloat(h.latitude), lng: parseFloat(h.longitude) }));
+            const lastScore = history[history.length-1].risk_score;
+            const color = getRiskColor(lastScore);
+
+            if (useGoogleMaps) {
+                if (paths[userId]) paths[userId].setMap(null);
+                paths[userId] = new google.maps.Polyline({
+                    path: pathData,
+                    geodesic: true,
+                    strokeColor: color,
+                    strokeOpacity: 1.0,
+                    strokeWeight: 4,
+                    map: map
+                });
+                const bounds = new google.maps.LatLngBounds();
+                pathData.forEach(p => bounds.extend(p));
+                map.fitBounds(bounds);
+            } else {
+                const leafPath = history.map(h => [parseFloat(h.latitude), parseFloat(h.longitude)]);
+                if (paths[userId]) map.removeLayer(paths[userId]);
+                paths[userId] = L.polyline(leafPath, {
+                    color: color,
+                    weight: 4,
+                    opacity: 1.0
+                }).addTo(map);
+                map.fitBounds(paths[userId].getBounds());
+            }
+            
+            updateTicker(`RENDERING FULL PATH FOR USER ${userId} | SCORE: ${lastScore}%`);
+        } catch (e) { console.error(e); }
+    }
+
+    function setMapLayer(type) {
+        currentLayerType = type;
+        if (useGoogleMaps) {
+            map.setMapTypeId(type === 'roadmap' ? google.maps.MapTypeId.ROADMAP : 
+                             type === 'hybrid' ? google.maps.MapTypeId.HYBRID : 
+                             google.maps.MapTypeId.TERRAIN);
+        } else {
+            // Remove all existing tile layers
+            Object.values(leafletLayers).forEach(layer => {
+                if (map.hasLayer(layer)) map.removeLayer(layer);
+            });
+            // Add selected layer
+            leafletLayers[type].addTo(map);
+        }
+        updateLayerUI(type);
+    }
+
+    function updateLayerUI(type) {
+        document.querySelectorAll('.layer-btn').forEach(b => b.classList.remove('active'));
+        if (type === 'roadmap') document.getElementById('layer-road').classList.add('active');
+        if (type === 'hybrid') document.getElementById('layer-sat').classList.add('active');
+        if (type === 'terrain') document.getElementById('layer-terrain').classList.add('active');
+    }
+
+    function toggleTraffic() {
+        if (!useGoogleMaps) {
+            updateTicker("TRAFFIC DATA UNAVAILABLE IN LEAFLET MODE");
+            return;
+        }
+        isTrafficVisible = !isTrafficVisible;
+        trafficLayer.setMap(isTrafficVisible ? map : null);
+        document.getElementById('layer-traffic').classList.toggle('active');
+    }
+
+    function toggleFollow() {
+        followMode = !followMode;
+        document.getElementById('follow-toggle').classList.toggle('active');
+        updateTicker(`FOLLOW MODE: ${followMode ? 'ACTIVE' : 'DISABLED'}`);
+    }
+
+    function clearPaths() {
+        if (useGoogleMaps) {
+            Object.values(paths).forEach(p => p.setMap(null));
+        } else {
+            Object.values(paths).forEach(p => map.removeLayer(p));
+        }
+        paths = {};
+        updateTicker("CLEARED ALL MOVEMENT PATHS");
+    }
+
+    function logSystem(msg, type = 'info') {
+        const log = document.getElementById('system-log');
+        const entry = document.createElement('div');
+        const color = type === 'error' ? '#ff3333' : (type === 'warn' ? '#ffcc00' : '#888');
+        entry.style.color = color;
+        entry.innerHTML = `> ${msg}`;
+        log.appendChild(entry);
+        log.scrollTop = log.scrollHeight;
+    }
+
+    window.onerror = function(msg, url, line) {
+        logSystem(`ERROR: ${msg} (Line ${line})`, 'error');
+        return false;
+    };
+
+    function updateTicker(text) {
+        document.getElementById('system-ticker').innerText = text.toUpperCase();
+        logSystem(text);
+    }
+
+    function startTicker() {
+        const phrases = [
+            "SCANNING SAT-COM FEED...",
+            "ENCRYPTED CHANNEL SECURE",
+            "UPLINK STABLE",
+            "MONITORING BANGALORE SECTOR-04",
+            "REAL-TIME TRACKING ACTIVE"
+        ];
+        let i = 0;
+        setInterval(() => {
+            const current = document.getElementById('system-ticker').innerText;
+            if (current.includes("POSITION") || current.includes("DEVICE") || current.includes("ALERT") || current.includes("DEPLOYED")) return;
+            updateTicker(phrases[i]);
+            i = (i + 1) % phrases.length;
+        }, 8000);
+    }
+
+    function playAlertSound() {
+        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+        audio.play().catch(() => console.log("Sound blocked by browser"));
+    }
+
+    // Google Maps Error Handling
+    window.gm_authFailure = function() {
+        console.error("Google Maps Authentication Failed! Please check your API Key.");
+        initLeafletMap(); // Fallback immediately
+    };
+</script>
+
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD5HO_rgb0L54SHd94vVTq6Elxbd_cmJlo&callback=initMap" async defer></script>
+
+</body>
+</html>
